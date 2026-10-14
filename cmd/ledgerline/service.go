@@ -127,6 +127,19 @@ func runWorker(ctx context.Context) error {
 		return fmt.Errorf("TARGET must be payments or ledger, not %q", target)
 	}
 	w := &outbox.Worker{Pool: pool, Handlers: handlers, BatchSize: intEnv("BATCH_SIZE", 100), Parallel: intEnv("PARALLEL", 16)}
+
+	// A gRPC health endpoint, so container health checks (and `docker compose up --wait`)
+	// treat workers like the services.
+	healthSrv := health.NewServer()
+	srv := grpc.NewServer()
+	healthpb.RegisterHealthServer(srv, healthSrv)
+	lis, err := net.Listen("tcp", env("LISTEN_ADDR", ":50051"))
+	if err != nil {
+		return err
+	}
+	go srv.Serve(lis) //nolint:errcheck
+	defer srv.Stop()
+
 	slog.Info("delivering outbox", "target", target, "addr", addr)
 	return w.Run(ctx)
 }

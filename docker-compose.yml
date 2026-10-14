@@ -77,7 +77,6 @@ services:
   worker-orders:
     <<: *app
     command: ["outbox-worker"]
-    healthcheck: { disable: true }
     environment:
       <<: *otel
       SOURCE_DATABASE_URL: postgres://ledgerline:ledgerline@postgres:5432/orders?sslmode=disable
@@ -90,7 +89,6 @@ services:
   worker-payments:
     <<: *app
     command: ["outbox-worker"]
-    healthcheck: { disable: true }
     environment:
       <<: *otel
       SOURCE_DATABASE_URL: postgres://ledgerline:ledgerline@postgres:5432/payments?sslmode=disable

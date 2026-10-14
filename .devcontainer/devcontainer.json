@@ -10,6 +10,7 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" }
   },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y python3 python3-venv",
   "customizations": {
     "vscode": { "extensions": ["golang.go"] }
   }

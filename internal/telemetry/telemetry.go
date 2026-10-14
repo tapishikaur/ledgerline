@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -38,8 +39,11 @@ func Setup(ctx context.Context, service string) (func(context.Context) error, er
 	return provider.Shutdown, nil
 }
 
-// ServerOption instruments a gRPC server: every call becomes a span, continuing the caller's trace.
-func ServerOption() grpc.ServerOption { return grpc.StatsHandler(otelgrpc.NewServerHandler()) }
+// ServerOption instruments a gRPC server: every call becomes a span, continuing the caller's
+// trace. Health checks (every 2 s from Docker) are left out: they'd bury the real traces.
+func ServerOption() grpc.ServerOption {
+	return grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithFilter(filters.Not(filters.HealthCheck()))))
+}
 
 // DialOption instruments a gRPC client: every call becomes a span and carries the trace context.
 func DialOption() grpc.DialOption { return grpc.WithStatsHandler(otelgrpc.NewClientHandler()) }

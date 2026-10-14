@@ -63,11 +63,11 @@ func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*
 		return nil, err
 	}
 	// Reusing an order_id for a different order is a client bug, not a retry.
-	if !created && (order.CustomerId != req.CustomerId || order.AmountMinor != req.AmountMinor) {
+	if order.CustomerId != req.CustomerId || order.AmountMinor != req.AmountMinor {
 		return nil, status.Errorf(codes.FailedPrecondition,
 			"order %s already exists with a different customer or amount", req.OrderId)
 	}
-	return &v1.CreateOrderResponse{Order: order, Created: created}, nil
+	return &v1.CreateOrderResponse{Order: order}, nil
 }
 
 func (s *Server) GetOrder(ctx context.Context, req *v1.GetOrderRequest) (*v1.Order, error) {

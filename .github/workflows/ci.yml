@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ledgerline
+          POSTGRES_PASSWORD: ledgerline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ledgerline" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      LEDGERLINE_TEST_DB: postgres://ledgerline:ledgerline@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Generated gRPC code is committed; it must match the .proto file exactly.
+      - name: Generated code is up to date
+        run: |
+          curl -sSL -o /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-x86_64.zip
+          sudo unzip -q -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          bash scripts/gen.sh
+          git diff --exit-code -- gen/
+
+      - name: Vet and test (race detector on)
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+
+  # The real stack: docker compose, crashes with docker kill, reconciliation, one Jaeger trace.
+  compose:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Chaos test, 2,000 orders (4,000 events) and 5 kills, then reconcile
+        run: |
+          bash scripts/chaos.sh 2000 5 7 "$RUNNER_TEMP/chaos.md"
+          cat "$RUNNER_TEMP/chaos.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: One trace follows an order through every service
+        run: |
+          python3 scripts/trace_check.py --out "$RUNNER_TEMP/trace.md"
+          cat "$RUNNER_TEMP/trace.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 200

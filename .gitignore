@@ -1,0 +1,12 @@
+# Build and run output (scripts/env.sh puts it outside the repo when inside OneDrive)
+.out/
+/ledgerline
+*.exe
+*.test
+*.out
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

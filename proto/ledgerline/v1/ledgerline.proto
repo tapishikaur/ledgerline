@@ -1,0 +1,91 @@
+// Ledgerline service contracts.
+//
+// Flow: a client calls Orders.CreateOrder. Orders writes the order and an OrderCreated event
+// in one transaction (the outbox); the outbox worker delivers it to Payments.HandleOrderCreated.
+// Payments charges once and writes the payment and a PaymentCaptured event in one transaction;
+// a worker delivers that to Ledger.ApplyPaymentCaptured, which writes two balanced entries.
+// Delivery is at-least-once; every handler is idempotent on event_id, so each event takes
+// effect exactly once.
+//
+// Money is an integer number of minor units (e.g. cents), never a float.
+
+syntax = "proto3";
+
+package ledgerline.v1;
+
+option go_package = "github.com/tapishikaur/ledgerline/gen/ledgerline/v1;ledgerlinev1";
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+service Orders {
+  // Creates an order. Idempotent on order_id: repeating a request returns the existing order
+  // with created = false, so a client retry after a timeout can't create a second order.
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (Order);
+}
+
+message CreateOrderRequest {
+  string order_id = 1;    // chosen by the client: the idempotency key
+  string customer_id = 2;
+  int64 amount_minor = 3; // > 0
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+  bool created = 2; // false if this order_id already existed
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message Order {
+  string order_id = 1;
+  string customer_id = 2;
+  int64 amount_minor = 3;
+  int64 created_unix_ms = 4;
+}
+
+// ── Events (stored in outbox rows as serialised bytes) ──────────────────────
+
+message OrderCreated {
+  string order_id = 1;
+  string customer_id = 2;
+  int64 amount_minor = 3;
+}
+
+message PaymentCaptured {
+  string payment_id = 1;
+  string order_id = 2;
+  string customer_id = 3;
+  int64 amount_minor = 4;
+  string charge_id = 5; // the payment provider's reference
+}
+
+// ── Payments ─────────────────────────────────────────────────────────────────
+
+service Payments {
+  rpc HandleOrderCreated(OrderCreatedEvent) returns (Ack);
+}
+
+message OrderCreatedEvent {
+  string event_id = 1; // unique per event; the idempotency key for the handler
+  OrderCreated data = 2;
+}
+
+// ── Ledger ───────────────────────────────────────────────────────────────────
+
+service Ledger {
+  rpc ApplyPaymentCaptured(PaymentCapturedEvent) returns (Ack);
+}
+
+message PaymentCapturedEvent {
+  string event_id = 1;
+  PaymentCaptured data = 2;
+}
+
+// The reply to an event delivery. Either way the event is now applied, and the sender can
+// mark it delivered.
+message Ack {
+  bool applied = 1; // true: applied now; false: already applied before (a duplicate delivery)
+}

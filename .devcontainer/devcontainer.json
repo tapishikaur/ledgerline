@@ -1,0 +1,16 @@
+{
+  // GitHub Codespaces (2 cores, 8 GB): Go, Docker (for docker compose, the chaos test, Jaeger
+  // and k6) and sshd (so `gh codespace ssh` can run the scripts from a terminal). Then:
+  //   docker compose up --build -d --wait && bash scripts/chaos.sh && bash scripts/k6.sh
+  "name": "ledgerline",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "hostRequirements": { "cpus": 2 },
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.26" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" }
+  },
+  "customizations": {
+    "vscode": { "extensions": ["golang.go"] }
+  }
+}

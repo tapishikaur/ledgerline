@@ -48,7 +48,7 @@ echo "$loadgen_line"
 
 status=0
 app reconcile -orders-db "$DB/orders?sslmode=disable" -payments-db "$DB/payments?sslmode=disable" \
-  -ledger-db "$DB/ledger?sslmode=disable" -expect-orders "$ORDERS" -wait 60m \
+  -ledger-db "$DB/ledger?sslmode=disable" -expect-orders "$ORDERS" -wait "${RECONCILE_WAIT:-60m}" \
   -title "Reconciliation after $KILLS kills" > /tmp/reconcile.md 2>&1 || status=$?
 elapsed=$(($(date +%s) - start))
 

@@ -18,6 +18,11 @@ x-app: &app
 x-otel: &otel
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
   OTEL_EXPORTER_OTLP_INSECURE: "true"
+  # Head sampling, decided once per trace at its root and followed by every service (parent-
+  # based). 1.0 traces every order (the default; the trace check needs it); production systems
+  # usually trace a fraction, e.g. TRACE_SAMPLE=0.1 for 10%.
+  OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  OTEL_TRACES_SAMPLER_ARG: "${TRACE_SAMPLE:-1.0}"
 
 services:
   postgres:

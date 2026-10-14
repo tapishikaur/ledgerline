@@ -30,16 +30,19 @@ func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*
 		return nil, err
 	}
 	created := false
+	var createdMs int64
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
+		// RETURNING gives back the new row's timestamp, so a new order needs no second query.
+		err := tx.QueryRow(ctx,
 			`INSERT INTO orders (order_id, customer_id, amount_minor) VALUES ($1, $2, $3)
-			 ON CONFLICT (order_id) DO NOTHING`,
-			req.OrderId, req.CustomerId, req.AmountMinor)
+			 ON CONFLICT (order_id) DO NOTHING
+			 RETURNING (extract(epoch FROM created_at) * 1000)::bigint`,
+			req.OrderId, req.CustomerId, req.AmountMinor).Scan(&createdMs)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // a retry of an order we already have: no second event
+		}
 		if err != nil {
 			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return nil // a retry of an order we already have: no second event
 		}
 		created = true
 		_, err = outbox.Insert(ctx, tx, EventOrderCreated, req.OrderId, &v1.OrderCreated{
@@ -50,7 +53,12 @@ func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "creating order: %v", err)
 	}
-	order, err := s.get(ctx, req.OrderId)
+	if created {
+		return &v1.CreateOrderResponse{Created: true, Order: &v1.Order{
+			OrderId: req.OrderId, CustomerId: req.CustomerId, AmountMinor: req.AmountMinor, CreatedUnixMs: createdMs,
+		}}, nil
+	}
+	order, err := s.get(ctx, req.OrderId) // a retry: answer with what we already have
 	if err != nil {
 		return nil, err
 	}

@@ -27,7 +27,9 @@ func Setup(ctx context.Context, service string) (func(context.Context) error, er
 	if err != nil {
 		return nil, err
 	}
-	res, err := resource.Merge(resource.Default(), resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(service)))
+	// Schemaless: merging attributes tagged with one semantic-convention schema version into the
+	// SDK's default resource (tagged with another) fails with "conflicting Schema URL".
+	res, err := resource.Merge(resource.Default(), resource.NewSchemaless(semconv.ServiceName(service)))
 	if err != nil {
 		return nil, err
 	}

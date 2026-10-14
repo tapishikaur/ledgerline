@@ -15,6 +15,7 @@ import json
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 JAEGER = "http://localhost:16686"
@@ -22,8 +23,15 @@ EXPECTED = ["orders", "outbox-worker-payments", "payments", "outbox-worker-ledge
 
 
 def jaeger(path: str) -> dict:
-    with urllib.request.urlopen(JAEGER + path, timeout=10) as r:
-        return json.load(r)
+    """GET from Jaeger's HTTP API. Jaeger answers 404 while it has no spans yet for a service
+    (spans are exported in batches), so 404 means "nothing yet", not an error."""
+    try:
+        with urllib.request.urlopen(JAEGER + path, timeout=10) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {"data": []}
+        raise
 
 
 def main() -> int:
